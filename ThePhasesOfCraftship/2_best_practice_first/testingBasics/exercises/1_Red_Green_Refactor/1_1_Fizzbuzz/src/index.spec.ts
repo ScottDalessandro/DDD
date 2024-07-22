@@ -15,4 +15,10 @@ describe("fizzbuzz", () => {
         expect(fizzbuzz(-1)).toBe('Invalid input');
     })
 
+    it('returns "FizzBuzz" when number is divisible by 3 and 5', () => {
+        expect(fizzbuzz(15)).toBe('FizzBuzz');
+        expect(fizzbuzz(30)).toBe('FizzBuzz');
+        expect(fizzbuzz(45)).toBe('FizzBuzz');
+    })
+
 });
