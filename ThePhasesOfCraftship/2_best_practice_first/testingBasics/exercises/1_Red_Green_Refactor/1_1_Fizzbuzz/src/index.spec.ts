@@ -21,10 +21,16 @@ describe("fizzbuzz", () => {
         expect(fizzbuzz(45)).toBe('FizzBuzz');
     })
 
-    it('returns Fizz when number is divisible by 3', () => {
+    it('returns "Fizz" when number is divisible by 3', () => {
         expect(fizzbuzz(3)).toBe('Fizz');
         expect(fizzbuzz(6)).toBe('Fizz');
         expect(fizzbuzz(9)).toBe('Fizz');
     })
+
+    it('returns "Buzz" when number is divisible by 5', () => {
+        expect(fizzbuzz(5)).toBe('Buzz');
+        expect(fizzbuzz(10)).toBe('Buzz');
+        expect(fizzbuzz(20)).toBe('Buzz');
+    }
 
 });
