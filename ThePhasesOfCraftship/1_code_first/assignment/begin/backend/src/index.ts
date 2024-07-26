@@ -13,10 +13,37 @@ type User = {
     password: string
 }
 
-const basicPasswordGenerator = () => {
+type UserResponse = Omit<User, 'password'>
+
+type ResponseObject = {
+    error: ErrorName | undefined
+    data: UserResponse | undefined
+    success: boolean
+}
+
+const ErrorName = {    
+    UsernameAlreadyTaken: 'UserNameAlreadyTaken',
+    EmailAlreadyInUse: 'EmailAlreadyInUse',
+    ValidationError: 'ValidationError',
+    ServerError: 'ServerError',
+    ClientError: 'ClientError',
+    UserNotFound: 'UserNotFound',      
+}
+
+type ErrorName = typeof ErrorName[keyof typeof ErrorName];
+
+const responseObjectFactory = (error: ErrorName | undefined, data: UserResponse | undefined, success: boolean): ResponseObject => {
+    return {
+        error,
+        data,
+        success
+    }
+}
+
+const basicPasswordGenerator = (length: number): string => {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
     let result = '';
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < length; i++) {
       result += characters.charAt(Math.floor(Math.random() * characters.length));
     }
     return result;
@@ -29,10 +56,15 @@ const createUser = async ({ email, firstName, lastName, username }: Omit<User, '
             username,
             firstName,
             lastName,
-            password: basicPasswordGenerator()
+            password: basicPasswordGenerator(10)
         }
     })
     return user
+}
+
+const removePasswordForResponse = (user:  User): UserResponse => {
+    const { password, ...userResponse } = user
+    return userResponse
 }
 
 const getUserByEmail = async (email: string) => {    
@@ -71,7 +103,7 @@ app.listen(port, () => {
 })
 
 app.get('/', (req: Request, res: Response) => {
-    res.send('Hello World!')
+    res.send('Landing Page')
 })
 
 // Create a new user - spaghetti code example
@@ -79,11 +111,12 @@ app.post('/users/new', async (req: Request, res: Response, next: NextFunction) =
     const { email, firstName, lastName, username } = req.body
     try {
         const user = await createUser({ email, firstName, lastName, username })
-        res.status(201).send(user)
+        const response = responseObjectFactory(undefined, removePasswordForResponse(user), true)
+        res.status(201).send(response)
     } catch (error) {
+        console.log('error handler')
         next(error)
     }
-            // .... more code
 });
         
         // Edit a user
@@ -94,9 +127,11 @@ app.post('/users/edit/:userId', async (req: Request, res: Response, next: NextFu
     try {
         const user = await updateUser(userId, { email, firstName, lastName, username })
         if (!user) {
-            return res.status(404).json({error: 'UserNotFound', data: undefined, success: false})
+            const userNotFoundResponse = responseObjectFactory(ErrorName.UserNotFound, undefined, false)
+            return res.status(404).json(userNotFoundResponse)
         }
-        res.status(200).send({error: undefined, data: {id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, username: user.username}, success: true})
+        const response = responseObjectFactory(undefined, removePasswordForResponse(user), true)
+        res.status(200).send(response)
     } catch (error) {
         next(error)
     }
@@ -110,27 +145,35 @@ app.get('/users', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const user = await getUserByEmail(email)        
         if (!user) {
-            return res.status(404).json({error: 'UserNotFound', data: undefined, success: false})
+            const userNotFoundResponse = responseObjectFactory(ErrorName.UserNotFound, undefined, false)
+            return res.status(404).json(userNotFoundResponse)
         }
-        res.status(200).send(user)
+        const response = responseObjectFactory(undefined, removePasswordForResponse(user), true) 
+        res.status(200).send(response)
     } catch (error) {
         next(error)
     }
-    // ...
-    // res.send('users route')
 });
 
 app.use((error: Object, req: Request, res: Response, next: NextFunction) => {    
     
     if (error instanceof Prisma.PrismaClientValidationError) {
-        res.status(400).json({error: 'ValidationError', data: undefined, success: false})
+        const validationErrorResponse = responseObjectFactory(ErrorName.ValidationError, undefined, false)
+        res.status(400).json(validationErrorResponse)
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError) {            
         if (error.code === 'P2002' && error.meta?.target && Array.isArray(error.meta?.target)) {
             // DRY refactor error
-            if(error.meta.target.includes('email')) res.status(409).json({error: 'EmailAlreadyInUse', data: undefined, success: false})
-            if(error.meta.target.includes('username')) res.status(409).json({error: 'UsernameAlreadyTaken', data: undefined, success: false})
-                return res.status(400).json({ error: 'Email already exists' });
+            if(error.meta.target.includes('email')){
+                const emailAlreadyInUseResponse = responseObjectFactory(ErrorName.EmailAlreadyInUse, undefined, false)
+                return res.status(409).json(emailAlreadyInUseResponse)
+            } 
+            if(error.meta.target.includes('username')) {
+                const usernameAlreadyTakenResponse = responseObjectFactory(ErrorName.UsernameAlreadyTaken, undefined, false)
+                return res.status(409).json(usernameAlreadyTakenResponse)
+            }
+            const clientErrorResponse = responseObjectFactory(ErrorName.ClientError, undefined, false) 
+            return res.status(400).json(clientErrorResponse);
         }
     }          
     next(error) 
@@ -138,6 +181,6 @@ app.use((error: Object, req: Request, res: Response, next: NextFunction) => {
 
 // Error handling middleware
 app.use((err, req: Request, res: Response) => {
-    
-    res.status(500).send({error: "ServerError", data: undefined, success: false})
+    const serverErrorResponse = responseObjectFactory(ErrorName.ServerError, undefined, false)
+    res.status(500).send(serverErrorResponse)
 })
